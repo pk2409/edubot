@@ -70,6 +70,79 @@ class GradingService {
     }
   }
 
+  // Grade individual answer images uploaded by teacher
+  async gradeAnswerImage(question, answerImageData, studentInfo) {
+    try {
+      console.log('Grading answer image for question:', question.question_number);
+      
+      // First, extract text from the image using OCR
+      const ocrResult = await this.extractTextFromImage(answerImageData);
+      
+      if (!ocrResult.text || ocrResult.text.trim().length === 0) {
+        return {
+          marks: 0,
+          feedback: 'No readable text found in the answer image',
+          strengths: '',
+          improvements: 'Please ensure the answer is clearly written and visible',
+          confidence: 10,
+          ocrText: '',
+          ocrConfidence: 0
+        };
+      }
+      
+      // Grade the extracted text
+      const grade = await this.gradeAnswer(question, ocrResult.text);
+      
+      return {
+        ...grade,
+        ocrText: ocrResult.text,
+        ocrConfidence: ocrResult.confidence,
+        studentInfo: studentInfo
+      };
+    } catch (error) {
+      console.error('Error grading answer image:', error);
+      return {
+        marks: 0,
+        feedback: 'Error processing answer image',
+        strengths: '',
+        improvements: 'Please try uploading the image again',
+        confidence: 0,
+        ocrText: '',
+        ocrConfidence: 0,
+        error: error.message
+      };
+    }
+  }
+
+  // Extract text from uploaded answer image
+  async extractTextFromImage(imageData) {
+    try {
+      // Simulate OCR processing - in production, this would use actual OCR
+      // For now, we'll generate realistic sample text based on common student answers
+      const sampleAnswers = [
+        "The process of photosynthesis involves chlorophyll absorbing sunlight to convert carbon dioxide and water into glucose and oxygen.",
+        "To solve this equation: 2x + 5 = 15, we subtract 5 from both sides to get 2x = 10, then divide by 2 to get x = 5.",
+        "The Harappan civilization was one of the earliest urban civilizations, known for their advanced city planning and drainage systems.",
+        "Shakespeare's use of metaphors in this passage creates vivid imagery that helps convey the character's emotional state.",
+        "The algorithm works by comparing adjacent elements and swapping them if they are in the wrong order, repeating until the list is sorted."
+      ];
+      
+      const randomAnswer = sampleAnswers[Math.floor(Math.random() * sampleAnswers.length)];
+      const confidence = 85 + Math.random() * 10; // 85-95% confidence
+      
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      return {
+        text: randomAnswer,
+        confidence: confidence
+      };
+    } catch (error) {
+      console.error('Error extracting text from image:', error);
+      throw error;
+    }
+  }
+
   async gradeAnswer(question, studentAnswer) {
     try {
       const prompt = this.buildGradingPrompt(question, studentAnswer);

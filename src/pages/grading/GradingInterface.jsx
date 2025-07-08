@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
+import { DatabaseService } from '../../services/supabase';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -12,7 +13,10 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowLeft,
-  Download
+  Download,
+  Edit3,
+  Brain,
+  Image
 } from 'lucide-react';
 
 const GradingInterface = () => {
@@ -27,6 +31,7 @@ const GradingInterface = () => {
   const [saving, setSaving] = useState(false);
   const [grades, setGrades] = useState({});
   const [feedback, setFeedback] = useState('');
+  const [showOriginalGrades, setShowOriginalGrades] = useState(true);
 
   useEffect(() => {
     loadGradingSession();
@@ -35,7 +40,7 @@ const GradingInterface = () => {
   const loadGradingSession = async () => {
     setLoading(true);
     try {
-      // Mock data for demonstration
+      // Mock data for demonstration - in production, load from database
       const mockSession = {
         id: sessionId,
         session_name: 'Mathematics Quiz - Chapter 5',
@@ -73,36 +78,28 @@ const GradingInterface = () => {
           roll_number: '001',
           class_section: '10-A',
           file_name: 'alice_math_quiz.jpg',
+          file_url: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=', // Placeholder base64
           ocr_text: {
-            pages: [{
-              text: `Question 1: Solve for x: 2x + 5 = 15
+            text: `Question 1: Solve for x: 2x + 5 = 15
 Answer: 2x + 5 = 15
 2x = 15 - 5
 2x = 10
-x = 5
-
-Question 2: Find the area of a rectangle with length 8cm and width 6cm
-Answer: Area = length × width
-Area = 8 × 6 = 48 cm²
-
-Question 3: Simplify: 3(x + 4) - 2(x - 1)
-Answer: 3(x + 4) - 2(x - 1)
-= 3x + 12 - 2x + 2
-= x + 14`,
-              confidence: 92
-            }]
+x = 5`,
+            confidence: 92
           },
           ai_grades: {
-            grades: [
-              { questionNumber: 1, marks: 10, maxMarks: 10, feedback: 'Perfect solution with clear steps' },
-              { questionNumber: 2, marks: 15, maxMarks: 15, feedback: 'Correct formula and calculation' },
-              { questionNumber: 3, marks: 23, maxMarks: 25, feedback: 'Correct answer, minor presentation issues' }
-            ],
-            totalMarks: 48,
-            percentage: 96
+            marks: 10,
+            feedback: 'Perfect solution with clear steps shown',
+            strengths: 'Excellent step-by-step approach, correct final answer',
+            improvements: 'None needed - this is a perfect answer',
+            confidence: 9
           },
+          final_grades: null,
+          total_marks: 10,
+          percentage: 100,
           processing_status: 'graded',
-          is_reviewed: false
+          is_reviewed: false,
+          teacher_feedback: ''
         },
         {
           id: '2',
@@ -110,31 +107,26 @@ Answer: 3(x + 4) - 2(x - 1)
           roll_number: '002',
           class_section: '10-A',
           file_name: 'bob_math_quiz.jpg',
+          file_url: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=',
           ocr_text: {
-            pages: [{
-              text: `Question 1: Solve for x: 2x + 5 = 15
+            text: `Question 1: Solve for x: 2x + 5 = 15
 Answer: 2x = 10
-x = 5
-
-Question 2: Find the area of a rectangle with length 8cm and width 6cm
-Answer: 8 × 6 = 48
-
-Question 3: Simplify: 3(x + 4) - 2(x - 1)
-Answer: 3x + 12 - 2x + 2 = x + 14`,
-              confidence: 88
-            }]
+x = 5`,
+            confidence: 88
           },
           ai_grades: {
-            grades: [
-              { questionNumber: 1, marks: 8, maxMarks: 10, feedback: 'Correct answer but missing some steps' },
-              { questionNumber: 2, marks: 12, maxMarks: 15, feedback: 'Correct calculation but missing formula' },
-              { questionNumber: 3, marks: 25, maxMarks: 25, feedback: 'Perfect solution' }
-            ],
-            totalMarks: 45,
-            percentage: 90
+            marks: 8,
+            feedback: 'Correct answer but missing some intermediate steps',
+            strengths: 'Correct final answer and basic understanding',
+            improvements: 'Show all steps in the solution process',
+            confidence: 7
           },
+          final_grades: null,
+          total_marks: 8,
+          percentage: 80,
           processing_status: 'graded',
-          is_reviewed: false
+          is_reviewed: false,
+          teacher_feedback: ''
         }
       ];
 
@@ -144,14 +136,15 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
       // Initialize grades for current submission
       if (mockSubmissions.length > 0) {
         const currentSubmission = mockSubmissions[0];
-        const initialGrades = {};
-        currentSubmission.ai_grades.grades.forEach(grade => {
-          initialGrades[grade.questionNumber] = {
-            marks: grade.marks,
-            feedback: grade.feedback
-          };
-        });
-        setGrades(initialGrades);
+        if (currentSubmission.ai_grades) {
+          setGrades({
+            marks: currentSubmission.ai_grades.marks,
+            feedback: currentSubmission.ai_grades.feedback,
+            strengths: currentSubmission.ai_grades.strengths,
+            improvements: currentSubmission.ai_grades.improvements
+          });
+        }
+        setFeedback(currentSubmission.teacher_feedback || '');
       }
     } catch (error) {
       console.error('Error loading grading session:', error);
@@ -162,38 +155,33 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
 
   const currentSubmission = submissions[currentIndex];
 
-  const handleGradeChange = (questionNumber, field, value) => {
+  const handleGradeChange = (field, value) => {
     setGrades(prev => ({
       ...prev,
-      [questionNumber]: {
-        ...prev[questionNumber],
-        [field]: field === 'marks' ? Math.max(0, parseInt(value) || 0) : value
-      }
+      [field]: field === 'marks' ? Math.max(0, parseInt(value) || 0) : value
     }));
   };
 
   const handleSaveGrades = async () => {
     setSaving(true);
     try {
-      // Convert grades to the expected format
-      const finalGrades = session.question_paper.questions.map(question => ({
-        questionNumber: question.question_number,
-        question: question.question_text,
-        maxMarks: question.max_marks,
-        marks: grades[question.question_number]?.marks || 0,
-        feedback: grades[question.question_number]?.feedback || ''
-      }));
-
-      const totalMarks = finalGrades.reduce((sum, grade) => sum + grade.marks, 0);
-      const percentage = (totalMarks / session.question_paper.total_marks) * 100;
+      const question = session.question_paper.questions[0]; // For single question demo
+      const maxMarks = question.max_marks;
+      const marks = Math.min(grades.marks || 0, maxMarks);
+      const percentage = (marks / maxMarks) * 100;
       const grade = percentage >= 90 ? 'A' : percentage >= 80 ? 'B' : percentage >= 70 ? 'C' : percentage >= 60 ? 'D' : 'F';
 
       // Update submission
       const updatedSubmissions = [...submissions];
       updatedSubmissions[currentIndex] = {
         ...currentSubmission,
-        final_grades: { grades: finalGrades },
-        total_marks: totalMarks,
+        final_grades: {
+          marks: marks,
+          feedback: grades.feedback,
+          strengths: grades.strengths,
+          improvements: grades.improvements
+        },
+        total_marks: marks,
         percentage: percentage,
         grade: grade,
         teacher_feedback: feedback,
@@ -209,16 +197,14 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
         // Load grades for next submission
         const nextSubmission = updatedSubmissions[currentIndex + 1];
         if (nextSubmission.ai_grades) {
-          const nextGrades = {};
-          nextSubmission.ai_grades.grades.forEach(grade => {
-            nextGrades[grade.questionNumber] = {
-              marks: grade.marks,
-              feedback: grade.feedback
-            };
+          setGrades({
+            marks: nextSubmission.ai_grades.marks,
+            feedback: nextSubmission.ai_grades.feedback,
+            strengths: nextSubmission.ai_grades.strengths,
+            improvements: nextSubmission.ai_grades.improvements
           });
-          setGrades(nextGrades);
         }
-        setFeedback('');
+        setFeedback(nextSubmission.teacher_feedback || '');
       }
 
       console.log('Grades saved successfully');
@@ -241,27 +227,34 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
       const submission = submissions[newIndex];
       if (submission.final_grades) {
         // Load saved grades
-        const savedGrades = {};
-        submission.final_grades.grades.forEach(grade => {
-          savedGrades[grade.questionNumber] = {
-            marks: grade.marks,
-            feedback: grade.feedback
-          };
+        setGrades({
+          marks: submission.final_grades.marks,
+          feedback: submission.final_grades.feedback,
+          strengths: submission.final_grades.strengths,
+          improvements: submission.final_grades.improvements
         });
-        setGrades(savedGrades);
         setFeedback(submission.teacher_feedback || '');
       } else if (submission.ai_grades) {
         // Load AI grades
-        const aiGrades = {};
-        submission.ai_grades.grades.forEach(grade => {
-          aiGrades[grade.questionNumber] = {
-            marks: grade.marks,
-            feedback: grade.feedback
-          };
+        setGrades({
+          marks: submission.ai_grades.marks,
+          feedback: submission.ai_grades.feedback,
+          strengths: submission.ai_grades.strengths,
+          improvements: submission.ai_grades.improvements
         });
-        setGrades(aiGrades);
         setFeedback('');
       }
+    }
+  };
+
+  const resetToAIGrades = () => {
+    if (currentSubmission.ai_grades) {
+      setGrades({
+        marks: currentSubmission.ai_grades.marks,
+        feedback: currentSubmission.ai_grades.feedback,
+        strengths: currentSubmission.ai_grades.strengths,
+        improvements: currentSubmission.ai_grades.improvements
+      });
     }
   };
 
@@ -311,7 +304,7 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-800">{session.session_name}</h1>
-                <p className="text-sm text-gray-600">{session.question_paper.subject} • {session.question_paper.total_marks} marks</p>
+                <p className="text-sm text-gray-600">{session.question_paper.subject} • Question-wise Grading</p>
               </div>
             </div>
             
@@ -341,19 +334,29 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
 
         {/* Main Content */}
         <div className="flex-1 flex">
-          {/* Document Viewer */}
+          {/* Answer Image Viewer */}
           <div className="w-1/3 bg-white border-r border-gray-200">
             <div className="p-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-800">Answer Sheet</h3>
+              <h3 className="font-semibold text-gray-800">Answer Image</h3>
               <p className="text-sm text-gray-600">{currentSubmission.file_name}</p>
             </div>
             <div className="p-4">
-              <div className="bg-gray-100 rounded-lg p-8 text-center">
-                <FileText className="mx-auto text-gray-400 mb-2" size={48} />
-                <p className="text-gray-600">Document Preview</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  {currentSubmission.file_name}
-                </p>
+              <div className="bg-gray-100 rounded-lg p-4 text-center">
+                {currentSubmission.file_url ? (
+                  <img 
+                    src={currentSubmission.file_url} 
+                    alt="Student Answer"
+                    className="max-w-full h-auto rounded"
+                  />
+                ) : (
+                  <>
+                    <Image className="mx-auto text-gray-400 mb-2" size={48} />
+                    <p className="text-gray-600">Answer Image</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      {currentSubmission.file_name}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -361,15 +364,15 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
           {/* OCR Text Panel */}
           <div className="w-1/3 bg-white border-r border-gray-200">
             <div className="p-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-800">Extracted Text</h3>
+              <h3 className="font-semibold text-gray-800">Extracted Text (OCR)</h3>
               <p className="text-sm text-gray-600">
-                OCR Confidence: {currentSubmission.ocr_text?.pages?.[0]?.confidence || 0}%
+                Confidence: {currentSubmission.ocr_text?.confidence || 0}%
               </p>
             </div>
             <div className="p-4 h-full overflow-y-auto">
               <div className="bg-gray-50 rounded-lg p-4">
                 <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
-                  {currentSubmission.ocr_text?.pages?.[0]?.text || 'No text extracted'}
+                  {currentSubmission.ocr_text?.text || 'No text extracted'}
                 </pre>
               </div>
             </div>
@@ -380,84 +383,136 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-800">Grading</h3>
+                  <h3 className="font-semibold text-gray-800">Manual Review & Grading</h3>
                   <p className="text-sm text-gray-600">
                     {currentSubmission.student_name} ({currentSubmission.roll_number})
                   </p>
                 </div>
-                {currentSubmission.is_reviewed && (
-                  <CheckCircle className="text-green-500" size={20} />
-                )}
+                <div className="flex items-center space-x-2">
+                  {currentSubmission.is_reviewed && (
+                    <CheckCircle className="text-green-500" size={20} />
+                  )}
+                  <button
+                    onClick={resetToAIGrades}
+                    className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+                    title="Reset to AI grades"
+                  >
+                    <Brain size={16} />
+                  </button>
+                </div>
               </div>
             </div>
             
             <div className="p-4 h-full overflow-y-auto">
               <div className="space-y-6">
-                {/* Questions */}
-                {session.question_paper.questions.map((question) => {
-                  const currentGrade = grades[question.question_number] || {};
-                  const aiGrade = currentSubmission.ai_grades?.grades?.find(g => g.questionNumber === question.question_number);
-                  
-                  return (
-                    <div key={question.question_number} className="border border-gray-200 rounded-lg p-4">
-                      <div className="mb-3">
-                        <h4 className="font-medium text-gray-800 mb-2">
-                          Question {question.question_number} ({question.max_marks} marks)
-                        </h4>
-                        <p className="text-sm text-gray-600 mb-2">{question.question_text}</p>
-                        {aiGrade && (
-                          <div className="bg-blue-50 rounded p-2 mb-3">
-                            <p className="text-xs text-blue-600 font-medium">AI Suggestion:</p>
-                            <p className="text-sm text-blue-700">{aiGrade.marks}/{question.max_marks} marks</p>
-                            <p className="text-xs text-blue-600">{aiGrade.feedback}</p>
-                          </div>
-                        )}
+                {/* Question Info */}
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-800 mb-2">
+                    Question 1 ({session.question_paper.questions[0].max_marks} marks)
+                  </h4>
+                  <p className="text-sm text-blue-700 mb-2">
+                    {session.question_paper.questions[0].question_text}
+                  </p>
+                  <div className="text-xs text-blue-600">
+                    <strong>Answer Key:</strong> {session.question_paper.questions[0].answer_key}
+                  </div>
+                </div>
+
+                {/* AI Grading Results */}
+                {currentSubmission.ai_grades && (
+                  <div className="bg-purple-50 rounded-lg p-4">
+                    <h4 className="font-medium text-purple-800 mb-3 flex items-center">
+                      <Brain size={16} className="mr-2" />
+                      AI Grading Results
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-purple-700">AI Score:</span>
+                        <span className="font-medium text-purple-800">
+                          {currentSubmission.ai_grades.marks}/{session.question_paper.questions[0].max_marks}
+                        </span>
                       </div>
-                      
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Marks
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            max={question.max_marks}
-                            value={currentGrade.marks || 0}
-                            onChange={(e) => handleGradeChange(question.question_number, 'marks', e.target.value)}
-                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Feedback
-                          </label>
-                          <textarea
-                            value={currentGrade.feedback || ''}
-                            onChange={(e) => handleGradeChange(question.question_number, 'feedback', e.target.value)}
-                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            rows="2"
-                            placeholder="Feedback for this question..."
-                          />
-                        </div>
+                      <div>
+                        <span className="text-purple-700">AI Feedback:</span>
+                        <p className="text-purple-600 mt-1">{currentSubmission.ai_grades.feedback}</p>
+                      </div>
+                      <div>
+                        <span className="text-purple-700">Confidence:</span>
+                        <span className="ml-2 text-purple-600">{currentSubmission.ai_grades.confidence}/10</span>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
 
-                {/* Overall Feedback */}
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Overall Feedback
-                  </label>
-                  <textarea
-                    value={feedback}
-                    onChange={(e) => setFeedback(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows="3"
-                    placeholder="Overall feedback for the student..."
-                  />
+                {/* Manual Grading */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-gray-800">Manual Review</h4>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Final Marks
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={session.question_paper.questions[0].max_marks}
+                      value={grades.marks || 0}
+                      onChange={(e) => handleGradeChange('marks', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Feedback
+                    </label>
+                    <textarea
+                      value={grades.feedback || ''}
+                      onChange={(e) => handleGradeChange('feedback', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows="3"
+                      placeholder="Feedback for this answer..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Strengths
+                    </label>
+                    <textarea
+                      value={grades.strengths || ''}
+                      onChange={(e) => handleGradeChange('strengths', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows="2"
+                      placeholder="What the student did well..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Areas for Improvement
+                    </label>
+                    <textarea
+                      value={grades.improvements || ''}
+                      onChange={(e) => handleGradeChange('improvements', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows="2"
+                      placeholder="Areas that need improvement..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Overall Teacher Feedback
+                    </label>
+                    <textarea
+                      value={feedback}
+                      onChange={(e) => setFeedback(e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows="3"
+                      placeholder="Overall feedback for the student..."
+                    />
+                  </div>
                 </div>
 
                 {/* Summary */}
@@ -465,15 +520,15 @@ Answer: 3x + 12 - 2x + 2 = x + 14`,
                   <h4 className="font-medium text-gray-800 mb-2">Summary</h4>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span>Total Marks:</span>
+                      <span>Final Marks:</span>
                       <span className="font-medium">
-                        {Object.values(grades).reduce((sum, grade) => sum + (grade.marks || 0), 0)} / {session.question_paper.total_marks}
+                        {grades.marks || 0} / {session.question_paper.questions[0].max_marks}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Percentage:</span>
                       <span className="font-medium">
-                        {Math.round((Object.values(grades).reduce((sum, grade) => sum + (grade.marks || 0), 0) / session.question_paper.total_marks) * 100)}%
+                        {Math.round(((grades.marks || 0) / session.question_paper.questions[0].max_marks) * 100)}%
                       </span>
                     </div>
                   </div>

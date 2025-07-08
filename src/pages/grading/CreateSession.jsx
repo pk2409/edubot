@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
 import { DatabaseService, SUBJECTS } from '../../services/supabase';
+import GradingService from '../../services/grading/gradingService';
 import { 
   ArrowLeft, 
   Plus, 
@@ -11,14 +12,18 @@ import {
   Users, 
   Clock,
   Save,
-  Upload
+  Upload,
+  Image,
+  CheckCircle,
+  AlertCircle,
+  Brain
 } from 'lucide-react';
 
 const CreateSession = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(1); // 1: Question Paper, 2: Session Details, 3: Upload Submissions
+  const [step, setStep] = useState(1); // 1: Question Paper, 2: Session Details, 3: Upload Answer Images
   
   const [questionPaper, setQuestionPaper] = useState({
     title: '',
@@ -40,7 +45,9 @@ const CreateSession = () => {
     instructions: ''
   });
 
-  const [submissions, setSubmissions] = useState([]);
+  const [answerImages, setAnswerImages] = useState([]); // Store uploaded answer images
+  const [gradingResults, setGradingResults] = useState({}); // Store AI grading results
+  const [processingStatus, setProcessingStatus] = useState({}); // Track processing status
 
   useEffect(() => {
     // Calculate total marks whenever questions change
@@ -86,27 +93,102 @@ const CreateSession = () => {
     }));
   };
 
-  const handleFileUpload = (event) => {
-    const files = Array.from(event.target.files);
-    const newSubmissions = files.map((file, index) => ({
-      id: Date.now() + index,
-      file: file,
-      student_name: `Student ${submissions.length + index + 1}`,
-      roll_number: `${(submissions.length + index + 1).toString().padStart(3, '0')}`,
-      class_section: questionPaper.class_section || 'A'
-    }));
-    
-    setSubmissions(prev => [...prev, ...newSubmissions]);
+  const handleAnswerImageUpload = async (questionIndex, files) => {
+    const question = questionPaper.questions[questionIndex];
+    const uploadedImages = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const imageId = `q${questionIndex + 1}_img${i + 1}_${Date.now()}`;
+      
+      // Convert file to base64 for storage
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsDataURL(file);
+      });
+
+      const imageData = {
+        id: imageId,
+        questionIndex: questionIndex,
+        questionNumber: question.question_number,
+        file: file,
+        base64: base64,
+        fileName: file.name,
+        studentName: `Student ${uploadedImages.length + 1}`, // Default name, can be edited
+        rollNumber: `${(uploadedImages.length + 1).toString().padStart(3, '0')}`,
+        uploadedAt: new Date().toISOString()
+      };
+
+      uploadedImages.push(imageData);
+    }
+
+    setAnswerImages(prev => [...prev, ...uploadedImages]);
   };
 
-  const removeSubmission = (id) => {
-    setSubmissions(prev => prev.filter(sub => sub.id !== id));
+  const removeAnswerImage = (imageId) => {
+    setAnswerImages(prev => prev.filter(img => img.id !== imageId));
+    // Also remove any grading results for this image
+    setGradingResults(prev => {
+      const updated = { ...prev };
+      delete updated[imageId];
+      return updated;
+    });
   };
 
-  const updateSubmissionDetails = (id, field, value) => {
-    setSubmissions(prev => prev.map(sub => 
-      sub.id === id ? { ...sub, [field]: value } : sub
+  const updateStudentInfo = (imageId, field, value) => {
+    setAnswerImages(prev => prev.map(img => 
+      img.id === imageId ? { ...img, [field]: value } : img
     ));
+  };
+
+  const gradeAnswerImage = async (imageData) => {
+    const question = questionPaper.questions[imageData.questionIndex];
+    
+    setProcessingStatus(prev => ({ ...prev, [imageData.id]: 'processing' }));
+    
+    try {
+      console.log('Grading answer image:', imageData.fileName);
+      
+      const result = await GradingService.gradeAnswerImage(
+        question, 
+        imageData.base64,
+        {
+          studentName: imageData.studentName,
+          rollNumber: imageData.rollNumber
+        }
+      );
+      
+      setGradingResults(prev => ({
+        ...prev,
+        [imageData.id]: {
+          ...result,
+          gradedAt: new Date().toISOString(),
+          questionNumber: question.question_number
+        }
+      }));
+      
+      setProcessingStatus(prev => ({ ...prev, [imageData.id]: 'completed' }));
+      
+    } catch (error) {
+      console.error('Error grading answer image:', error);
+      setProcessingStatus(prev => ({ ...prev, [imageData.id]: 'error' }));
+    }
+  };
+
+  const gradeAllAnswers = async () => {
+    setLoading(true);
+    
+    try {
+      const gradingPromises = answerImages.map(imageData => gradeAnswerImage(imageData));
+      await Promise.all(gradingPromises);
+      
+      console.log('All answers graded successfully');
+    } catch (error) {
+      console.error('Error grading answers:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateSession = async () => {
@@ -116,18 +198,57 @@ const CreateSession = () => {
       const sessionName = sessionDetails.session_name || 
         `${questionPaper.subject} - ${questionPaper.title} - ${new Date().toLocaleDateString()}`;
 
-      // For now, we'll simulate creating the session
-      // In production, this would save to the database
-      console.log('Creating grading session:', {
-        questionPaper,
-        sessionDetails: { ...sessionDetails, session_name: sessionName },
-        submissions: submissions.length
+      // Create question paper first
+      const { data: paperData, error: paperError } = await DatabaseService.createQuestionPaper({
+        created_by: user.id,
+        title: questionPaper.title,
+        subject: questionPaper.subject,
+        class_section: questionPaper.class_section,
+        questions: questionPaper.questions,
+        total_marks: questionPaper.total_marks
       });
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (paperError) throw paperError;
 
-      // Navigate to the grading interface
+      // Create grading session
+      const { data: sessionData, error: sessionError } = await DatabaseService.createGradingSession({
+        teacher_id: user.id,
+        question_paper_id: paperData.id,
+        session_name: sessionName,
+        total_submissions: answerImages.length,
+        graded_submissions: Object.keys(gradingResults).length
+      });
+
+      if (sessionError) throw sessionError;
+
+      // Create student submissions with grading results
+      for (const imageData of answerImages) {
+        const gradingResult = gradingResults[imageData.id];
+        
+        const submissionData = {
+          session_id: sessionData.id,
+          student_name: imageData.studentName,
+          roll_number: imageData.rollNumber,
+          class_section: questionPaper.class_section,
+          file_url: imageData.base64,
+          file_name: imageData.fileName,
+          ocr_text: gradingResult ? { text: gradingResult.ocrText, confidence: gradingResult.ocrConfidence } : {},
+          ai_grades: gradingResult ? {
+            marks: gradingResult.marks,
+            feedback: gradingResult.feedback,
+            strengths: gradingResult.strengths,
+            improvements: gradingResult.improvements,
+            confidence: gradingResult.confidence
+          } : {},
+          total_marks: gradingResult ? gradingResult.marks : 0,
+          percentage: gradingResult ? (gradingResult.marks / questionPaper.questions[imageData.questionIndex].max_marks) * 100 : 0,
+          processing_status: gradingResult ? 'graded' : 'uploaded'
+        };
+
+        await DatabaseService.createStudentSubmission(submissionData);
+      }
+
+      console.log('Grading session created successfully');
       navigate('/grading');
     } catch (error) {
       console.error('Error creating grading session:', error);
@@ -147,13 +268,17 @@ const CreateSession = () => {
   };
 
   const canCreateSession = () => {
-    return submissions.length > 0 && 
-           submissions.every(sub => sub.student_name && sub.roll_number);
+    return answerImages.length > 0 && 
+           answerImages.every(img => img.studentName && img.rollNumber);
+  };
+
+  const getQuestionImages = (questionIndex) => {
+    return answerImages.filter(img => img.questionIndex === questionIndex);
   };
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center space-x-4">
           <button
@@ -164,7 +289,7 @@ const CreateSession = () => {
           </button>
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Create Grading Session</h1>
-            <p className="text-gray-600 mt-2">Set up a new AI-powered grading session</p>
+            <p className="text-gray-600 mt-2">Set up AI-powered grading with answer images</p>
           </div>
         </div>
 
@@ -173,7 +298,7 @@ const CreateSession = () => {
           {[
             { number: 1, title: 'Question Paper', icon: FileText },
             { number: 2, title: 'Session Details', icon: Users },
-            { number: 3, title: 'Upload Submissions', icon: Upload }
+            { number: 3, title: 'Upload Answer Images', icon: Image }
           ].map((stepInfo) => {
             const Icon = stepInfo.icon;
             const isActive = step === stepInfo.number;
@@ -426,7 +551,7 @@ const CreateSession = () => {
                   disabled={!canProceedToStep3()}
                   className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Next: Upload Submissions
+                  Next: Upload Answer Images
                 </button>
               </div>
             </div>
@@ -434,80 +559,154 @@ const CreateSession = () => {
 
           {step === 3 && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-800">Upload Student Submissions</h2>
-              
-              {/* File Upload */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="mx-auto text-gray-400 mb-4" size={48} />
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Upload Answer Sheets</h3>
-                <p className="text-gray-600 mb-4">
-                  Select multiple image files (JPG, PNG) or PDF files of student answer sheets
-                </p>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors cursor-pointer inline-block"
-                >
-                  Choose Files
-                </label>
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-gray-800">Upload Answer Images</h2>
+                {answerImages.length > 0 && (
+                  <button
+                    onClick={gradeAllAnswers}
+                    disabled={loading}
+                    className="flex items-center space-x-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50"
+                  >
+                    <Brain size={16} />
+                    <span>{loading ? 'Grading...' : 'Grade All Answers'}</span>
+                  </button>
+                )}
               </div>
-
-              {/* Uploaded Submissions */}
-              {submissions.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                    Uploaded Submissions ({submissions.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {submissions.map((submission) => (
-                      <div key={submission.id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <FileText className="text-blue-600" size={20} />
+              
+              {/* Question-wise Upload */}
+              <div className="space-y-6">
+                {questionPaper.questions.map((question, questionIndex) => {
+                  const questionImages = getQuestionImages(questionIndex);
+                  
+                  return (
+                    <div key={questionIndex} className="border border-gray-200 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800">
+                            Question {question.question_number} ({question.max_marks} marks)
+                          </h3>
+                          <p className="text-gray-600 text-sm mt-1">{question.question_text}</p>
                         </div>
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">Student Name</label>
-                            <input
-                              type="text"
-                              value={submission.student_name}
-                              onChange={(e) => updateSubmissionDetails(submission.id, 'student_name', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded text-sm"
-                              placeholder="Student name"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">Roll Number</label>
-                            <input
-                              type="text"
-                              value={submission.roll_number}
-                              onChange={(e) => updateSubmissionDetails(submission.id, 'roll_number', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded text-sm"
-                              placeholder="Roll number"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">File</label>
-                            <span className="text-sm text-gray-600">{submission.file.name}</span>
-                          </div>
+                        <div className="text-sm text-gray-500">
+                          {questionImages.length} answer(s) uploaded
                         </div>
-                        <button
-                          onClick={() => removeSubmission(submission.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 size={16} />
-                        </button>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
+                      {/* Upload Area */}
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-4">
+                        <Image className="mx-auto text-gray-400 mb-2" size={32} />
+                        <h4 className="text-lg font-medium text-gray-800 mb-2">
+                          Upload Answer Images for Question {question.question_number}
+                        </h4>
+                        <p className="text-gray-600 mb-4">
+                          Select multiple images of student answers for this question
+                        </p>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={(e) => handleAnswerImageUpload(questionIndex, e.target.files)}
+                          className="hidden"
+                          id={`file-upload-q${questionIndex}`}
+                        />
+                        <label
+                          htmlFor={`file-upload-q${questionIndex}`}
+                          className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors cursor-pointer inline-block"
+                        >
+                          Choose Images
+                        </label>
+                      </div>
+
+                      {/* Uploaded Images */}
+                      {questionImages.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-gray-800">Uploaded Answer Images:</h4>
+                          {questionImages.map((imageData) => {
+                            const gradingResult = gradingResults[imageData.id];
+                            const status = processingStatus[imageData.id];
+                            
+                            return (
+                              <div key={imageData.id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
+                                <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                                  <img 
+                                    src={imageData.base64} 
+                                    alt={imageData.fileName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Student Name</label>
+                                    <input
+                                      type="text"
+                                      value={imageData.studentName}
+                                      onChange={(e) => updateStudentInfo(imageData.id, 'studentName', e.target.value)}
+                                      className="w-full p-2 border border-gray-300 rounded text-sm"
+                                      placeholder="Student name"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Roll Number</label>
+                                    <input
+                                      type="text"
+                                      value={imageData.rollNumber}
+                                      onChange={(e) => updateStudentInfo(imageData.id, 'rollNumber', e.target.value)}
+                                      className="w-full p-2 border border-gray-300 rounded text-sm"
+                                      placeholder="Roll number"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs text-gray-500 mb-1">File</label>
+                                    <span className="text-sm text-gray-600">{imageData.fileName}</span>
+                                  </div>
+                                </div>
+
+                                {/* Grading Status */}
+                                <div className="text-center">
+                                  {status === 'processing' && (
+                                    <div className="flex items-center space-x-2 text-blue-600">
+                                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                      <span className="text-sm">Grading...</span>
+                                    </div>
+                                  )}
+                                  {status === 'completed' && gradingResult && (
+                                    <div className="text-green-600">
+                                      <CheckCircle size={16} className="mx-auto mb-1" />
+                                      <div className="text-sm font-medium">{gradingResult.marks}/{question.max_marks}</div>
+                                    </div>
+                                  )}
+                                  {status === 'error' && (
+                                    <div className="text-red-600">
+                                      <AlertCircle size={16} className="mx-auto mb-1" />
+                                      <div className="text-sm">Error</div>
+                                    </div>
+                                  )}
+                                  {!status && (
+                                    <button
+                                      onClick={() => gradeAnswerImage(imageData)}
+                                      className="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600 transition-colors"
+                                    >
+                                      Grade
+                                    </button>
+                                  )}
+                                </div>
+
+                                <button
+                                  onClick={() => removeAnswerImage(imageData.id)}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
               <div className="flex justify-between">
                 <button
