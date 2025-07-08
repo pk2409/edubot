@@ -6,70 +6,6 @@ class GradingService {
     this.watsonxService = WatsonxService;
   }
 
-  async gradeSubmission(questionPaper, ocrText) {
-    try {
-      console.log('Starting AI grading for submission...');
-      
-      const grades = [];
-      const questions = questionPaper.questions || [];
-      
-      // Extract answers from OCR text
-      const extractedAnswers = this.extractAnswersFromOCR(ocrText, questions.length);
-      
-      // Grade each question
-      for (let i = 0; i < questions.length; i++) {
-        const question = questions[i];
-        const studentAnswer = extractedAnswers[i] || '';
-        
-        if (studentAnswer.trim()) {
-          const grade = await this.gradeAnswer(question, studentAnswer);
-          grades.push({
-            questionNumber: i + 1,
-            question: question.question_text,
-            studentAnswer: studentAnswer,
-            maxMarks: question.max_marks,
-            ...grade
-          });
-        } else {
-          // No answer found
-          grades.push({
-            questionNumber: i + 1,
-            question: question.question_text,
-            studentAnswer: '',
-            maxMarks: question.max_marks,
-            marks: 0,
-            feedback: 'No answer provided',
-            strengths: '',
-            improvements: 'Please provide an answer to this question',
-            confidence: 10
-          });
-        }
-      }
-      
-      const totalMarks = grades.reduce((sum, grade) => sum + grade.marks, 0);
-      const maxTotalMarks = grades.reduce((sum, grade) => sum + grade.maxMarks, 0);
-      const percentage = maxTotalMarks > 0 ? (totalMarks / maxTotalMarks) * 100 : 0;
-      
-      console.log('AI grading completed:', {
-        totalQuestions: grades.length,
-        totalMarks: totalMarks,
-        maxTotalMarks: maxTotalMarks,
-        percentage: percentage.toFixed(1)
-      });
-      
-      return {
-        grades: grades,
-        totalMarks: totalMarks,
-        maxTotalMarks: maxTotalMarks,
-        percentage: percentage,
-        overallFeedback: this.generateOverallFeedback(percentage, grades)
-      };
-    } catch (error) {
-      console.error('Error in AI grading:', error);
-      throw error;
-    }
-  }
-
   // Grade individual answer images uploaded by teacher
   async gradeAnswerImage(question, answerImageData, studentInfo) {
     try {
@@ -84,14 +20,14 @@ class GradingService {
           feedback: 'No readable text found in the answer image',
           strengths: '',
           improvements: 'Please ensure the answer is clearly written and visible',
-          confidence: 10,
+          confidence: 1,
           ocrText: '',
           ocrConfidence: 0
         };
       }
       
-      // Grade the extracted text
-      const grade = await this.gradeAnswer(question, ocrResult.text);
+      // Grade the extracted text using Watsonx without answer key
+      const grade = await this.gradeAnswerWithoutKey(question, ocrResult.text);
       
       return {
         ...grade,
@@ -114,27 +50,32 @@ class GradingService {
     }
   }
 
-  // Extract text from uploaded answer image
+  // Extract text from uploaded answer image using OCR
   async extractTextFromImage(imageData) {
     try {
-      // Simulate OCR processing - in production, this would use actual OCR
-      // For now, we'll generate realistic sample text based on common student answers
-      const sampleAnswers = [
-        "The process of photosynthesis involves chlorophyll absorbing sunlight to convert carbon dioxide and water into glucose and oxygen.",
-        "To solve this equation: 2x + 5 = 15, we subtract 5 from both sides to get 2x = 10, then divide by 2 to get x = 5.",
-        "The Harappan civilization was one of the earliest urban civilizations, known for their advanced city planning and drainage systems.",
-        "Shakespeare's use of metaphors in this passage creates vivid imagery that helps convey the character's emotional state.",
-        "The algorithm works by comparing adjacent elements and swapping them if they are in the wrong order, repeating until the list is sorted."
-      ];
+      console.log('Extracting text from answer image...');
       
-      const randomAnswer = sampleAnswers[Math.floor(Math.random() * sampleAnswers.length)];
-      const confidence = 85 + Math.random() * 10; // 85-95% confidence
+      // Simulate OCR processing - in production, this would use actual OCR service
+      // The OCR would analyze the actual image content
       
       // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // In a real implementation, this would:
+      // 1. Send the image to an OCR service (Tesseract, Google Vision, etc.)
+      // 2. Get back the extracted text with confidence scores
+      // 3. Clean and format the text
+      
+      // For now, we'll simulate realistic OCR extraction
+      const confidence = 80 + Math.random() * 15; // 80-95% confidence
+      
+      // Simulate extracted text that would come from OCR
+      const extractedText = "Student's handwritten answer would be extracted here by OCR service";
+      
+      console.log('OCR extraction completed with confidence:', confidence);
       
       return {
-        text: randomAnswer,
+        text: extractedText,
         confidence: confidence
       };
     } catch (error) {
@@ -143,32 +84,40 @@ class GradingService {
     }
   }
 
-  async gradeAnswer(question, studentAnswer) {
+  // Grade answer using Watsonx without requiring answer key
+  async gradeAnswerWithoutKey(question, studentAnswer) {
     try {
-      const prompt = this.buildGradingPrompt(question, studentAnswer);
+      const prompt = this.buildGradingPromptWithoutKey(question, studentAnswer);
       
-      // Use Watsonx for grading
+      // Use Watsonx for intelligent grading
       const response = await this.watsonxService.sendMessage(prompt);
       
       return this.parseGradingResponse(response, question.max_marks);
     } catch (error) {
-      console.error('Error grading individual answer:', error);
+      console.error('Error grading answer with Watsonx:', error);
       
-      // Fallback grading
-      return this.fallbackGrading(question, studentAnswer);
+      // Fallback grading without answer key
+      return this.fallbackGradingWithoutKey(question, studentAnswer);
     }
   }
 
-  buildGradingPrompt(question, studentAnswer) {
-    return `You are an expert teacher grading a student's answer. Please evaluate this response carefully and provide detailed feedback.
+  buildGradingPromptWithoutKey(question, studentAnswer) {
+    return `You are an expert teacher grading a student's answer. Evaluate this response based on your knowledge of the subject and standard educational criteria.
 
 QUESTION: ${question.question_text}
+SUBJECT: ${question.subject || 'General'}
 MAXIMUM MARKS: ${question.max_marks}
-ANSWER KEY/RUBRIC: ${question.answer_key || 'Use your expertise to evaluate the answer'}
 
 STUDENT ANSWER: ${studentAnswer}
 
-Please grade this answer and provide:
+Please grade this answer based on:
+1. Correctness of the content
+2. Completeness of the response
+3. Clarity of explanation
+4. Use of appropriate terminology
+5. Logical structure and reasoning
+
+Provide:
 1. MARKS: Give a specific score out of ${question.max_marks} marks
 2. FEEDBACK: Brief constructive feedback (2-3 sentences)
 3. STRENGTHS: What the student did well
@@ -184,7 +133,7 @@ Format your response as JSON:
   "confidence": number (1-10)
 }
 
-Be fair but thorough in your evaluation. Consider partial credit for partially correct answers.`;
+Be fair and consider partial credit for partially correct answers. Base your evaluation on educational standards for this type of question.`;
   }
 
   parseGradingResponse(response, maxMarks) {
@@ -200,9 +149,9 @@ Be fair but thorough in your evaluation. Consider partial credit for partially c
         // Validate and sanitize the response
         return {
           marks: Math.min(Math.max(0, parsed.marks || 0), maxMarks),
-          feedback: parsed.feedback || 'Good effort!',
-          strengths: parsed.strengths || 'Shows understanding of the topic',
-          improvements: parsed.improvements || 'Continue practicing',
+          feedback: parsed.feedback || 'Answer evaluated by AI',
+          strengths: parsed.strengths || 'Shows effort in attempting the question',
+          improvements: parsed.improvements || 'Continue practicing and studying',
           confidence: Math.min(Math.max(1, parsed.confidence || 5), 10)
         };
       }
@@ -220,82 +169,89 @@ Be fair but thorough in your evaluation. Consider partial credit for partially c
     const feedbackMatch = response.match(/feedback[:\s]*([^\.]+\.?)/i);
     
     const marks = marksMatch ? Math.min(parseFloat(marksMatch[1]), maxMarks) : Math.floor(maxMarks * 0.6);
-    const feedback = feedbackMatch ? feedbackMatch[1].trim() : 'Good effort! Keep practicing.';
+    const feedback = feedbackMatch ? feedbackMatch[1].trim() : 'Answer evaluated by AI. Please review.';
     
     return {
       marks: marks,
       feedback: feedback,
-      strengths: 'Shows effort and understanding',
+      strengths: 'Shows understanding of the topic',
       improvements: 'Continue studying and practicing',
       confidence: 6
     };
   }
 
-  fallbackGrading(question, studentAnswer) {
-    // Simple keyword-based fallback grading
+  fallbackGradingWithoutKey(question, studentAnswer) {
+    // Intelligent fallback grading based on answer analysis
     const answerLength = studentAnswer.trim().length;
     const maxMarks = question.max_marks;
     
     let marks = 0;
+    let feedback = '';
+    let strengths = '';
+    let improvements = '';
     
-    if (answerLength > 0) {
-      // Basic scoring based on answer length and keywords
-      if (answerLength > 50) marks += maxMarks * 0.3;
-      if (answerLength > 100) marks += maxMarks * 0.2;
-      if (answerLength > 200) marks += maxMarks * 0.2;
-      
-      // Check for key terms from the question
-      const questionWords = question.question_text.toLowerCase().split(' ');
-      const answerWords = studentAnswer.toLowerCase().split(' ');
-      
-      const keywordMatches = questionWords.filter(word => 
-        word.length > 3 && answerWords.includes(word)
-      ).length;
-      
-      marks += (keywordMatches / questionWords.length) * maxMarks * 0.3;
+    if (answerLength === 0) {
+      marks = 0;
+      feedback = 'No answer provided';
+      improvements = 'Please attempt to answer the question';
+    } else if (answerLength < 20) {
+      marks = Math.floor(maxMarks * 0.2);
+      feedback = 'Very brief answer, needs more detail';
+      strengths = 'Attempted the question';
+      improvements = 'Provide more detailed explanation';
+    } else if (answerLength < 50) {
+      marks = Math.floor(maxMarks * 0.4);
+      feedback = 'Basic answer provided, could be more comprehensive';
+      strengths = 'Shows basic understanding';
+      improvements = 'Add more details and examples';
+    } else if (answerLength < 100) {
+      marks = Math.floor(maxMarks * 0.6);
+      feedback = 'Good attempt with reasonable detail';
+      strengths = 'Provides adequate explanation';
+      improvements = 'Could include more specific details';
+    } else {
+      marks = Math.floor(maxMarks * 0.8);
+      feedback = 'Comprehensive answer with good detail';
+      strengths = 'Detailed response showing good understanding';
+      improvements = 'Continue with this level of detail';
     }
     
-    marks = Math.min(Math.round(marks), maxMarks);
+    // Analyze question type for better scoring
+    const questionText = question.question_text.toLowerCase();
+    if (questionText.includes('explain') || questionText.includes('describe')) {
+      // Explanation questions need more detail
+      if (answerLength > 100) marks = Math.min(marks + 1, maxMarks);
+    } else if (questionText.includes('calculate') || questionText.includes('solve')) {
+      // Math questions - look for numbers and operations
+      const hasNumbers = /\d/.test(studentAnswer);
+      const hasOperations = /[+\-*/=]/.test(studentAnswer);
+      if (hasNumbers && hasOperations) {
+        marks = Math.min(marks + 2, maxMarks);
+        strengths += ' Shows mathematical working';
+      }
+    } else if (questionText.includes('list') || questionText.includes('name')) {
+      // List questions - count items
+      const items = studentAnswer.split(/[,\n•\-]/).filter(item => item.trim().length > 0);
+      marks = Math.min(items.length * (maxMarks / 5), maxMarks);
+    }
+    
+    marks = Math.max(0, Math.min(marks, maxMarks));
     
     return {
       marks: marks,
-      feedback: 'Answer evaluated using basic criteria. Please review with teacher.',
-      strengths: answerLength > 50 ? 'Provided a detailed response' : 'Attempted the question',
-      improvements: 'Consider adding more specific details and examples',
+      feedback: feedback,
+      strengths: strengths,
+      improvements: improvements,
       confidence: 4
     };
   }
 
-  extractAnswersFromOCR(ocrText, numQuestions) {
-    // Extract individual answers from OCR text
-    const answers = [];
-    
-    if (!ocrText.pages || ocrText.pages.length === 0) {
-      return new Array(numQuestions).fill('');
-    }
-    
-    const fullText = ocrText.pages.map(page => page.text).join('\n');
-    
-    // Try to split by question numbers
-    const questionPattern = /(?:Question|Q\.?)\s*(\d+)[:\.]?\s*(.*?)(?=(?:Question|Q\.?)\s*\d+|$)/gis;
-    const matches = [...fullText.matchAll(questionPattern)];
-    
-    if (matches.length > 0) {
-      // Found question-based structure
-      for (let i = 0; i < numQuestions; i++) {
-        const match = matches.find(m => parseInt(m[1]) === i + 1);
-        answers.push(match ? match[2].trim() : '');
-      }
-    } else {
-      // Split by paragraphs or sections
-      const sections = fullText.split(/\n\s*\n/).filter(section => section.trim());
-      
-      for (let i = 0; i < numQuestions; i++) {
-        answers.push(sections[i] || '');
-      }
-    }
-    
-    return answers;
+  calculateGrade(percentage) {
+    if (percentage >= 90) return 'A';
+    if (percentage >= 80) return 'B';
+    if (percentage >= 70) return 'C';
+    if (percentage >= 60) return 'D';
+    return 'F';
   }
 
   generateOverallFeedback(percentage, grades) {
@@ -310,14 +266,6 @@ Be fair but thorough in your evaluation. Consider partial credit for partially c
     } else {
       return 'Needs improvement. Please review the material and practice more. Consider seeking additional help.';
     }
-  }
-
-  calculateGrade(percentage) {
-    if (percentage >= 90) return 'A';
-    if (percentage >= 80) return 'B';
-    if (percentage >= 70) return 'C';
-    if (percentage >= 60) return 'D';
-    return 'F';
   }
 }
 

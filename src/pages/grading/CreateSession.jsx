@@ -150,8 +150,14 @@ const CreateSession = () => {
     try {
       console.log('Grading answer image:', imageData.fileName);
       
+      // Add subject context to question for better AI grading
+      const questionWithContext = {
+        ...question,
+        subject: questionPaper.subject
+      };
+      
       const result = await GradingService.gradeAnswerImage(
-        question, 
+        questionWithContext, 
         imageData.base64,
         {
           studentName: imageData.studentName,
@@ -423,16 +429,19 @@ const CreateSession = () => {
                       <div className="space-y-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Question Text
+                            Answer Key/Rubric (Optional)
                           </label>
                           <textarea
                             value={question.question_text}
                             onChange={(e) => updateQuestion(index, 'question_text', e.target.value)}
                             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             rows="2"
-                            placeholder="Enter the question"
+                            placeholder="Optional: Expected answer or grading rubric for reference"
                             required
                           />
+                          <p className="text-xs text-gray-500 mt-1">
+                            AI will grade based on question content and educational standards
+                          </p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -599,7 +608,7 @@ const CreateSession = () => {
                           Upload Answer Images for Question {question.question_number}
                         </h4>
                         <p className="text-gray-600 mb-4">
-                          Select multiple images of student answers for this question
+                          Select multiple images of student answers. AI will automatically grade them based on the question content.
                         </p>
                         <input
                           type="file"
@@ -615,6 +624,9 @@ const CreateSession = () => {
                         >
                           Choose Images
                         </label>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Supported formats: JPG, PNG, JPEG
+                        </p>
                       </div>
 
                       {/* Uploaded Images */}
