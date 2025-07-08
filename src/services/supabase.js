@@ -405,8 +405,7 @@ export const DatabaseService = {
         .from('grading_sessions')
         .select(`
           *,
-          question_paper:question_papers(*),
-          student_submissions(count)
+          question_paper:question_papers(*)
         `)
         .eq('teacher_id', teacherId)
         .order('created_at', { ascending: false });
@@ -416,6 +415,21 @@ export const DatabaseService = {
     } catch (error) {
       console.error('Error getting grading sessions:', error);
       return { data: null, error };
+    }
+  },
+
+  async deleteGradingSession(sessionId) {
+    try {
+      const { error } = await supabase
+        .from('grading_sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error deleting grading session:', error);
+      return { error };
     }
   },
 
