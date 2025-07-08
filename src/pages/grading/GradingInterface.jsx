@@ -40,102 +40,25 @@ const GradingInterface = () => {
   const loadGradingSession = async () => {
     setLoading(true);
     try {
-      // Mock data for demonstration - in production, load from database
-      const mockSession = {
-        id: sessionId,
-        session_name: 'Mathematics Quiz - Chapter 5',
-        question_paper: {
-          title: 'Algebra and Equations',
-          subject: 'Mathematics',
-          total_marks: 50,
-          questions: [
-            {
-              question_number: 1,
-              question_text: 'Solve for x: 2x + 5 = 15',
-              max_marks: 10,
-              answer_key: '2x = 10, x = 5'
-            },
-            {
-              question_number: 2,
-              question_text: 'Find the area of a rectangle with length 8cm and width 6cm',
-              max_marks: 15,
-              answer_key: 'Area = length × width = 8 × 6 = 48 cm²'
-            },
-            {
-              question_number: 3,
-              question_text: 'Simplify: 3(x + 4) - 2(x - 1)',
-              max_marks: 25,
-              answer_key: '3x + 12 - 2x + 2 = x + 14'
-            }
-          ]
-        }
-      };
+      // Load actual session data from database
+      const { data: sessionData, error: sessionError } = await DatabaseService.getGradingSessions(user.id);
+      if (sessionError) throw sessionError;
+      
+      const currentSession = sessionData?.find(s => s.id === sessionId);
+      if (!currentSession) {
+        throw new Error('Session not found');
+      }
+      
+      // Load submissions for this session
+      const { data: submissionData, error: submissionError } = await DatabaseService.getSessionSubmissions(sessionId);
+      if (submissionError) throw submissionError;
 
-      const mockSubmissions = [
-        {
-          id: '1',
-          student_name: 'Alice Johnson',
-          roll_number: '001',
-          class_section: '10-A',
-          file_name: 'alice_math_quiz.jpg',
-          file_url: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=', // Placeholder base64
-          ocr_text: {
-            text: `Question 1: Solve for x: 2x + 5 = 15
-Answer: 2x + 5 = 15
-2x = 15 - 5
-2x = 10
-x = 5`,
-            confidence: 92
-          },
-          ai_grades: {
-            marks: 10,
-            feedback: 'Perfect solution with clear steps shown',
-            strengths: 'Excellent step-by-step approach, correct final answer',
-            improvements: 'None needed - this is a perfect answer',
-            confidence: 9
-          },
-          final_grades: null,
-          total_marks: 10,
-          percentage: 100,
-          processing_status: 'graded',
-          is_reviewed: false,
-          teacher_feedback: ''
-        },
-        {
-          id: '2',
-          student_name: 'Bob Smith',
-          roll_number: '002',
-          class_section: '10-A',
-          file_name: 'bob_math_quiz.jpg',
-          file_url: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=',
-          ocr_text: {
-            text: `Question 1: Solve for x: 2x + 5 = 15
-Answer: 2x = 10
-x = 5`,
-            confidence: 88
-          },
-          ai_grades: {
-            marks: 8,
-            feedback: 'Correct answer but missing some intermediate steps',
-            strengths: 'Correct final answer and basic understanding',
-            improvements: 'Show all steps in the solution process',
-            confidence: 7
-          },
-          final_grades: null,
-          total_marks: 8,
-          percentage: 80,
-          processing_status: 'graded',
-          is_reviewed: false,
-          teacher_feedback: ''
-        }
-      ];
-
-      setSession(mockSession);
-      setSubmissions(mockSubmissions);
+      setSession(currentSession);
+      setSubmissions(submissionData || []);
       
       // Initialize grades for current submission
-      if (mockSubmissions.length > 0) {
-        const currentSubmission = mockSubmissions[0];
+      if (submissionData && submissionData.length > 0) {
+        const currentSubmission = submissionData[0];
         if (currentSubmission.ai_grades) {
           setGrades({
             marks: currentSubmission.ai_grades.marks,
@@ -408,13 +331,13 @@ x = 5`,
                 {/* Question Info */}
                 <div className="bg-blue-50 rounded-lg p-4">
                   <h4 className="font-medium text-blue-800 mb-2">
-                    Question 1 ({session.question_paper.questions[0].max_marks} marks)
+                    Current Question ({currentSubmission.question_number || 1})
                   </h4>
                   <p className="text-sm text-blue-700 mb-2">
-                    {session.question_paper.questions[0].question_text}
+                    {currentSubmission.question_text || 'Question text not available'}
                   </p>
-                  <div className="text-xs text-blue-600">
-                    <strong>Answer Key:</strong> {session.question_paper.questions[0].answer_key}
+                  <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                    <strong>AI Evaluation:</strong> This answer was automatically graded by AI based on question content and educational standards.
                   </div>
                 </div>
 
@@ -429,7 +352,7 @@ x = 5`,
                       <div className="flex justify-between">
                         <span className="text-purple-700">AI Score:</span>
                         <span className="font-medium text-purple-800">
-                          {currentSubmission.ai_grades.marks}/{session.question_paper.questions[0].max_marks}
+                          {currentSubmission.ai_grades.marks}/{currentSubmission.max_marks || 10}
                         </span>
                       </div>
                       <div>
@@ -455,7 +378,7 @@ x = 5`,
                     <input
                       type="number"
                       min="0"
-                      max={session.question_paper.questions[0].max_marks}
+                      max={currentSubmission.max_marks || 10}
                       value={grades.marks || 0}
                       onChange={(e) => handleGradeChange('marks', e.target.value)}
                       className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -522,13 +445,13 @@ x = 5`,
                     <div className="flex justify-between">
                       <span>Final Marks:</span>
                       <span className="font-medium">
-                        {grades.marks || 0} / {session.question_paper.questions[0].max_marks}
+                        {grades.marks || 0} / {currentSubmission.max_marks || 10}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Percentage:</span>
                       <span className="font-medium">
-                        {Math.round(((grades.marks || 0) / session.question_paper.questions[0].max_marks) * 100)}%
+                        {Math.round(((grades.marks || 0) / (currentSubmission.max_marks || 10)) * 100)}%
                       </span>
                     </div>
                   </div>

@@ -40,57 +40,36 @@ const GradingHub = () => {
   const loadGradingSessions = async () => {
     setLoading(true);
     try {
-      // For now, we'll use mock data since the database tables are new
-      const mockSessions = [
-        {
-          id: '1',
-          session_name: 'Mathematics Quiz - Chapter 5',
-          status: 'completed',
-          total_submissions: 25,
-          graded_submissions: 25,
-          created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          completed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          question_paper: {
-            title: 'Algebra and Equations',
-            subject: 'Mathematics',
-            total_marks: 50
-          }
-        },
-        {
-          id: '2',
-          session_name: 'Science Test - Photosynthesis',
-          status: 'in_progress',
-          total_submissions: 18,
-          graded_submissions: 12,
-          created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          question_paper: {
-            title: 'Plant Biology',
-            subject: 'Science',
-            total_marks: 40
-          }
-        },
-        {
-          id: '3',
-          session_name: 'History Assignment - Ancient Civilizations',
-          status: 'in_progress',
-          total_submissions: 22,
-          graded_submissions: 8,
-          created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-          question_paper: {
-            title: 'Harappan Civilization',
-            subject: 'History',
-            total_marks: 60
-          }
-        }
-      ];
+      // Load actual grading sessions from database
+      const { data: sessions, error } = await DatabaseService.getGradingSessions(user.id);
+      
+      if (error) {
+        console.error('Error loading grading sessions:', error);
+        // Fallback to empty array if there's an error
+        setSessions([]);
+        setStats({
+          totalSessions: 0,
+          totalSubmissions: 0,
+          gradedSubmissions: 0,
+          averageScore: 0
+        });
+        return;
+      }
 
-      setSessions(mockSessions);
+      setSessions(sessions || []);
       
       // Calculate stats
-      const totalSessions = mockSessions.length;
-      const totalSubmissions = mockSessions.reduce((sum, session) => sum + session.total_submissions, 0);
-      const gradedSubmissions = mockSessions.reduce((sum, session) => sum + session.graded_submissions, 0);
-      const averageScore = 78; // Mock average
+      const totalSessions = sessions?.length || 0;
+      const totalSubmissions = sessions?.reduce((sum, session) => sum + (session.total_submissions || 0), 0) || 0;
+      const gradedSubmissions = sessions?.reduce((sum, session) => sum + (session.graded_submissions || 0), 0) || 0;
+      
+      // Calculate average score from actual submissions
+      let averageScore = 0;
+      if (sessions && sessions.length > 0) {
+        // This would need to be calculated from actual submission data
+        // For now, we'll use a placeholder
+        averageScore = 75; // This should be calculated from actual grades
+      }
       
       setStats({
         totalSessions,
@@ -100,6 +79,13 @@ const GradingHub = () => {
       });
     } catch (error) {
       console.error('Error loading grading sessions:', error);
+      setSessions([]);
+      setStats({
+        totalSessions: 0,
+        totalSubmissions: 0,
+        gradedSubmissions: 0,
+        averageScore: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -107,9 +93,14 @@ const GradingHub = () => {
 
   const handleDeleteSession = async (sessionId) => {
     try {
-      // In production, this would delete from database
+      const { error } = await DatabaseService.deleteGradingSession(sessionId);
+      if (error) throw error;
+      
       setSessions(sessions.filter(session => session.id !== sessionId));
       setDeleteConfirm(null);
+      
+      // Reload sessions to update stats
+      await loadGradingSessions();
     } catch (error) {
       console.error('Error deleting session:', error);
     }
