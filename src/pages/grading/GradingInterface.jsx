@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
 import { DatabaseService } from '../../services/supabase';
@@ -16,7 +17,8 @@ import {
   Download,
   Edit3,
   Brain,
-  Image
+  Image,
+  Upload
 } from 'lucide-react';
 
 const GradingInterface = () => {

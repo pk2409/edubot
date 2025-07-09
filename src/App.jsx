@@ -14,6 +14,7 @@ import CreateSession from './pages/grading/CreateSession';
 import GradingInterface from './pages/grading/GradingInterface';
 import SessionAnalytics from './pages/grading/SessionAnalytics';
 import GradingHistory from './pages/grading/GradingHistory';
+import BulkUpload from './pages/grading/BulkUpload';
 
 function App() {
   return (
@@ -87,6 +88,12 @@ function App() {
           <Route path="/grading/history" element={
             <ProtectedRoute requiredRole="teacher">
               <GradingHistory />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/grading/bulk-upload/:sessionId" element={
+            <ProtectedRoute requiredRole="teacher">
+              <BulkUpload />
             </ProtectedRoute>
           } />
           

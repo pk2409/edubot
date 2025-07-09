@@ -70,7 +70,18 @@ class GradingService {
       const confidence = 80 + Math.random() * 15; // 80-95% confidence
       
       // Simulate extracted text that would come from OCR
-      const extractedText = "Student's handwritten answer would be extracted here by OCR service";
+      // Generate more realistic sample answers based on common student responses
+      const sampleAnswers = [
+        "Photosynthesis is the process by which plants make food using sunlight, water and carbon dioxide. Chlorophyll in leaves captures light energy and converts it to chemical energy. This produces glucose and oxygen.",
+        "The water cycle includes evaporation from oceans, condensation in clouds, precipitation as rain, and collection in water bodies. This process repeats continuously.",
+        "To solve 2x + 5 = 15: First subtract 5 from both sides: 2x = 10. Then divide by 2: x = 5. Therefore x equals 5.",
+        "The three types of rocks are igneous (formed from cooled magma), sedimentary (formed from compressed layers), and metamorphic (formed by heat and pressure).",
+        "Democracy is a system of government where people elect their representatives. Citizens have the right to vote and participate in decision making.",
+        "Mitosis is cell division that produces two identical cells. The phases are prophase, metaphase, anaphase, and telophase.",
+        "Force equals mass times acceleration (F = ma). This is Newton's second law of motion which describes the relationship between force, mass and acceleration."
+      ];
+      
+      const extractedText = sampleAnswers[Math.floor(Math.random() * sampleAnswers.length)];
       
       console.log('OCR extraction completed with confidence:', confidence);
       
