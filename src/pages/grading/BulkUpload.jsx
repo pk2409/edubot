@@ -412,7 +412,7 @@ const BulkUpload = () => {
                     >
                       <Brain size={16} />
                       <span>{processing ? 'Processing...' : 'Process All'}</span>
-                    </button>
+                    Supported formats: JPG, PNG, JPEG • Max 50 images • No answer key required
                   </div>
                 </div>
 
@@ -474,7 +474,7 @@ const BulkUpload = () => {
                 <Brain className="text-white animate-pulse" size={32} />
               </div>
               <h3 className="text-2xl font-bold text-gray-800 mb-2">Processing Answer Images</h3>
-              <p className="text-gray-600">AI is analyzing and grading each answer...</p>
+              <p className="text-gray-600">Smart AI is analyzing handwriting and grading each answer based on your questions...</p>
             </div>
 
             <div className="space-y-4">
@@ -489,7 +489,7 @@ const BulkUpload = () => {
                         src={imageData.base64} 
                         alt={imageData.fileName}
                         className="w-full h-full object-cover"
-                      />
+                      Drag and drop multiple answer images or click to browse. AI will automatically grade based on your questions.
                     </div>
                     
                     <div className="flex-1">

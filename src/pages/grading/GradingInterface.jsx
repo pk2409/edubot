@@ -333,13 +333,13 @@ const GradingInterface = () => {
                 {/* Question Info */}
                 <div className="bg-blue-50 rounded-lg p-4">
                   <h4 className="font-medium text-blue-800 mb-2">
-                    Current Question ({currentSubmission.question_number || 1})
+                    Question {currentSubmission.question_number || 1}
                   </h4>
                   <p className="text-sm text-blue-700 mb-2">
-                    {currentSubmission.question_text || 'Question text not available'}
+                    {session.question_paper.questions[0]?.question_text || 'Question text not available'}
                   </p>
                   <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
-                    <strong>AI Evaluation:</strong> This answer was automatically graded by AI based on question content and educational standards.
+                    <strong>Smart AI Grading:</strong> No answer key required - AI evaluates based on question context, subject knowledge, and educational standards.
                   </div>
                 </div>
 

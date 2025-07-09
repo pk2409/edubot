@@ -113,27 +113,35 @@ class GradingService {
   }
 
   buildGradingPromptWithoutKey(question, studentAnswer) {
-    return `You are an expert teacher grading a student's answer. Evaluate this response based on your knowledge of the subject and standard educational criteria.
+    return `You are an expert teacher grading a student's handwritten answer. Evaluate this response based on your extensive knowledge of ${question.subject || 'the subject'} and standard educational criteria.
 
-QUESTION: ${question.question_text}
+QUESTION: "${question.question_text}"
 SUBJECT: ${question.subject || 'General'}
 MAXIMUM MARKS: ${question.max_marks}
 
 STUDENT ANSWER: ${studentAnswer}
 
-Please grade this answer based on:
+Grade this answer comprehensively based on:
 1. Correctness of the content
 2. Completeness of the response
 3. Clarity of explanation
 4. Use of appropriate terminology
 5. Logical structure and reasoning
+6. Demonstration of understanding
+7. Relevant examples or details
 
-Provide:
+Provide detailed evaluation:
 1. MARKS: Give a specific score out of ${question.max_marks} marks
-2. FEEDBACK: Brief constructive feedback (2-3 sentences)
-3. STRENGTHS: What the student did well
-4. IMPROVEMENTS: Specific areas for improvement
+2. FEEDBACK: Constructive feedback explaining the grade (2-3 sentences)
+3. STRENGTHS: What the student did well (be specific)
+4. IMPROVEMENTS: Specific areas for improvement and learning
 5. CONFIDENCE: Your confidence in this grading (1-10 scale)
+
+Consider partial credit for:
+- Partially correct concepts
+- Good attempt with minor errors
+- Relevant but incomplete information
+- Clear reasoning even if conclusion is wrong
 
 Format your response as JSON:
 {
@@ -144,7 +152,7 @@ Format your response as JSON:
   "confidence": number (1-10)
 }
 
-Be fair and consider partial credit for partially correct answers. Base your evaluation on educational standards for this type of question.`;
+Be fair, encouraging, and educational in your assessment. Consider the student's level and give partial credit appropriately.`;
   }
 
   parseGradingResponse(response, maxMarks) {
@@ -192,9 +200,11 @@ Be fair and consider partial credit for partially correct answers. Base your eva
   }
 
   fallbackGradingWithoutKey(question, studentAnswer) {
-    // Intelligent fallback grading based on answer analysis
+    // Enhanced fallback grading based on comprehensive answer analysis
     const answerLength = studentAnswer.trim().length;
     const maxMarks = question.max_marks;
+    const questionText = question.question_text.toLowerCase();
+    const subject = question.subject?.toLowerCase() || '';
     
     let marks = 0;
     let feedback = '';
@@ -203,47 +213,88 @@ Be fair and consider partial credit for partially correct answers. Base your eva
     
     if (answerLength === 0) {
       marks = 0;
-      feedback = 'No answer provided';
-      improvements = 'Please attempt to answer the question';
+      feedback = 'No answer provided for this question';
+      improvements = 'Please attempt to answer the question next time';
     } else if (answerLength < 20) {
-      marks = Math.floor(maxMarks * 0.2);
-      feedback = 'Very brief answer, needs more detail';
-      strengths = 'Attempted the question';
-      improvements = 'Provide more detailed explanation';
+      marks = Math.floor(maxMarks * 0.3);
+      feedback = 'Very brief answer provided, but needs much more detail and explanation';
+      strengths = 'Made an attempt to answer the question';
+      improvements = 'Provide more detailed explanations with examples and reasoning';
     } else if (answerLength < 50) {
-      marks = Math.floor(maxMarks * 0.4);
-      feedback = 'Basic answer provided, could be more comprehensive';
-      strengths = 'Shows basic understanding';
-      improvements = 'Add more details and examples';
+      marks = Math.floor(maxMarks * 0.5);
+      feedback = 'Basic answer provided with some understanding shown';
+      strengths = 'Shows some understanding of the topic';
+      improvements = 'Expand your answer with more details, examples, and clearer explanations';
     } else if (answerLength < 100) {
-      marks = Math.floor(maxMarks * 0.6);
-      feedback = 'Good attempt with reasonable detail';
-      strengths = 'Provides adequate explanation';
-      improvements = 'Could include more specific details';
+      marks = Math.floor(maxMarks * 0.7);
+      feedback = 'Good attempt with reasonable detail and understanding demonstrated';
+      strengths = 'Provides adequate explanation with good effort shown';
+      improvements = 'Could include more specific details and examples to strengthen the answer';
     } else {
-      marks = Math.floor(maxMarks * 0.8);
-      feedback = 'Comprehensive answer with good detail';
-      strengths = 'Detailed response showing good understanding';
-      improvements = 'Continue with this level of detail';
+      marks = Math.floor(maxMarks * 0.85);
+      feedback = 'Comprehensive answer with good detail and clear understanding';
+      strengths = 'Detailed response showing strong understanding of the concept';
+      improvements = 'Excellent work - continue with this level of thoroughness';
     }
     
-    // Analyze question type for better scoring
-    const questionText = question.question_text.toLowerCase();
+    // Enhanced question type analysis for better scoring
     if (questionText.includes('explain') || questionText.includes('describe')) {
       // Explanation questions need more detail
-      if (answerLength > 100) marks = Math.min(marks + 1, maxMarks);
+      if (answerLength > 100) {
+        marks = Math.min(marks + 1, maxMarks);
+        strengths += ' Shows good explanatory skills';
+      }
     } else if (questionText.includes('calculate') || questionText.includes('solve')) {
       // Math questions - look for numbers and operations
       const hasNumbers = /\d/.test(studentAnswer);
       const hasOperations = /[+\-*/=]/.test(studentAnswer);
       if (hasNumbers && hasOperations) {
         marks = Math.min(marks + 2, maxMarks);
-        strengths += ' Shows mathematical working';
+        strengths += ' Shows mathematical working and calculations';
+      }
+      if (studentAnswer.includes('therefore') || studentAnswer.includes('answer is')) {
+        marks = Math.min(marks + 1, maxMarks);
+        strengths += ' Provides clear conclusion';
       }
     } else if (questionText.includes('list') || questionText.includes('name')) {
       // List questions - count items
       const items = studentAnswer.split(/[,\n•\-]/).filter(item => item.trim().length > 0);
-      marks = Math.min(items.length * (maxMarks / 5), maxMarks);
+      const expectedItems = 5; // Assume 5 items expected
+      marks = Math.min(items.length * (maxMarks / expectedItems), maxMarks);
+      if (items.length >= expectedItems) {
+        strengths += ' Provided comprehensive list';
+      }
+    } else if (questionText.includes('compare') || questionText.includes('contrast')) {
+      // Comparison questions
+      if (studentAnswer.includes('similar') || studentAnswer.includes('different') || 
+          studentAnswer.includes('both') || studentAnswer.includes('however')) {
+        marks = Math.min(marks + 1, maxMarks);
+        strengths += ' Shows comparative analysis';
+      }
+    }
+    
+    // Subject-specific enhancements
+    if (subject.includes('science') || subject.includes('biology') || subject.includes('chemistry') || subject.includes('physics')) {
+      if (studentAnswer.includes('because') || studentAnswer.includes('due to') || studentAnswer.includes('causes')) {
+        marks = Math.min(marks + 1, maxMarks);
+        strengths += ' Shows scientific reasoning';
+      }
+    } else if (subject.includes('history')) {
+      if (studentAnswer.includes('period') || studentAnswer.includes('time') || /\d{3,4}/.test(studentAnswer)) {
+        marks = Math.min(marks + 1, maxMarks);
+        strengths += ' Includes historical context';
+      }
+    } else if (subject.includes('english') || subject.includes('literature')) {
+      if (studentAnswer.includes('author') || studentAnswer.includes('character') || studentAnswer.includes('theme')) {
+        marks = Math.min(marks + 1, maxMarks);
+        strengths += ' Shows literary understanding';
+      }
+    }
+    
+    // Ensure minimum marks for genuine attempts
+    if (answerLength > 10 && marks === 0) {
+      marks = 1;
+      strengths = 'Made an attempt to answer';
     }
     
     marks = Math.max(0, Math.min(marks, maxMarks));
@@ -253,7 +304,7 @@ Be fair and consider partial credit for partially correct answers. Base your eva
       feedback: feedback,
       strengths: strengths,
       improvements: improvements,
-      confidence: 4
+      confidence: answerLength > 50 ? 6 : 4
     };
   }
 

@@ -429,18 +429,18 @@ const CreateSession = () => {
                       <div className="space-y-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Answer Key/Rubric (Optional)
+                            Question Text
                           </label>
                           <textarea
                             value={question.question_text}
                             onChange={(e) => updateQuestion(index, 'question_text', e.target.value)}
                             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             rows="2"
-                            placeholder="Optional: Expected answer or grading rubric for reference"
+                            placeholder="Enter the question text (e.g., 'What is photosynthesis?')"
                             required
                           />
                           <p className="text-xs text-gray-500 mt-1">
-                            AI will grade based on question content and educational standards
+                            AI will automatically grade student answers based on the question and subject context
                           </p>
                         </div>
 
@@ -461,15 +461,18 @@ const CreateSession = () => {
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Answer Key/Rubric
+                              Answer Key/Rubric (Optional)
                             </label>
                             <textarea
                               value={question.answer_key}
                               onChange={(e) => updateQuestion(index, 'answer_key', e.target.value)}
                               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               rows="2"
-                              placeholder="Expected answer or grading rubric"
+                              placeholder="Optional: Expected answer or grading rubric for reference"
                             />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Leave blank - AI will grade based on question content and educational standards
+                            </p>
                           </div>
                         </div>
                       </div>
